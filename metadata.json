@@ -1,0 +1,6 @@
+{
+  "name": "Cosmic Layers Explorer",
+  "description": "An interactive 3D WebGL educational simulation exploring the solar system, stellar architectures, and internal planetary layers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

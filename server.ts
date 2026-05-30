@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -82,8 +83,18 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Serve production bundle built statically
-    const distPath = path.join(process.cwd(), 'dist');
+    // Serve production bundle built statically with recursive path detection
+    let distPath = path.join(process.cwd(), 'dist');
+    
+    // Check if we are running in bundled output folder or from a subfolder
+    const localCjsDir = typeof __dirname !== 'undefined' ? __dirname : '';
+    if (localCjsDir && fs.existsSync(path.join(localCjsDir, 'index.html'))) {
+      distPath = localCjsDir;
+    } else if (fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'))) {
+      distPath = path.join(process.cwd(), 'dist');
+    }
+    
+    console.log("Serving static files in production from:", distPath);
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

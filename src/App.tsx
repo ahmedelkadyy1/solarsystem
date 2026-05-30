@@ -44,6 +44,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // States
+  const [webGlError, setWebGlError] = useState<string | null>(null);
   const [selectedID, setSelectedID] = useState<string | null>(null);
   const [currentLayerIndex, setCurrentLayerIndex] = useState<number>(0);
   const [orbitSpeedFactor, setOrbitSpeedFactor] = useState<number>(1.0);
@@ -330,24 +331,35 @@ export default function App() {
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    // 2. Camera
+    // 2. Camera with safe dimension ratios
+    const initialWidth = canvasRef.current.clientWidth || window.innerWidth || 800;
+    const initialHeight = canvasRef.current.clientHeight || window.innerHeight || 600;
+    const initialAspect = initialHeight > 0 ? (initialWidth / initialHeight) : 1.33;
+
     const camera = new THREE.PerspectiveCamera(
       45,
-      canvasRef.current.clientWidth / canvasRef.current.clientHeight,
+      initialAspect,
       0.1,
       1000
     );
     cameraRef.current = camera;
 
-    // 3. Renderer with antialiasing
-    const renderer = new THREE.WebGLRenderer({
-      canvas: canvasRef.current,
-      antialias: true,
-      alpha: true,
-    });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.localClippingEnabled = true; // Support geological clipping / splits
-    rendererRef.current = renderer;
+    // 3. WebGL Renderer with antialiasing and safe try-catch wrapper
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.current,
+        antialias: true,
+        alpha: true,
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.localClippingEnabled = true; // Support geological clipping / splits
+      rendererRef.current = renderer;
+    } catch (err: any) {
+      console.error("WebGL initialization failed:", err);
+      setWebGlError(err?.message || "WebGL is not supported or successfully initialized in your current browser session.");
+      return;
+    }
 
     // 4. Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
@@ -649,10 +661,12 @@ export default function App() {
       const w = entry.contentRect.width;
       const h = entry.contentRect.height;
 
-      if (cameraRef.current && rendererRef.current) {
-        cameraRef.current.aspect = w / h;
-        cameraRef.current.updateProjectionMatrix();
-        rendererRef.current.setSize(w, h);
+      if (w > 0 && h > 0) {
+        if (cameraRef.current && rendererRef.current) {
+          cameraRef.current.aspect = w / h;
+          cameraRef.current.updateProjectionMatrix();
+          rendererRef.current.setSize(w, h);
+        }
       }
     });
     rObserver.observe(containerRef.current);
@@ -661,9 +675,11 @@ export default function App() {
     if (rendererRef.current && containerRef.current) {
       const width = containerRef.current.clientWidth;
       const height = containerRef.current.clientHeight;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
+      if (width > 0 && height > 0) {
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      }
     }
 
     // Dynamic rendering calculation loops
@@ -991,6 +1007,31 @@ export default function App() {
       Math.min(maxD, cameraState.current.targetDistance + zoomDelta)
     );
   };
+
+  if (webGlError) {
+    return (
+      <div id="app-webgl-error" className="relative w-full h-screen flex flex-col items-center justify-center text-slate-350 font-sans bg-[#020408] p-6 text-center">
+        <div className="max-w-md bg-black/60 border border-red-500/30 p-8 shadow-2xl space-y-4">
+          <div className="text-red-500 text-4xl font-light">⚠️ WebGL Error</div>
+          <h2 className="text-lg font-bold text-white uppercase tracking-wider">Planetary Simulation Offline</h2>
+          <p className="text-xs text-slate-400 leading-relaxed font-light">
+            {webGlError}
+          </p>
+          <p className="text-xs text-cyan-400 font-mono">
+            TIPS: If you are running inside a sandboxed frame, please open the application in a new tab by clicking the button in the top-right corner to bypass security sandboxing.
+          </p>
+          <div className="pt-4">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 border border-cyan-500/50 hover:bg-cyan-500/10 text-cyan-400 text-xs tracking-widest font-mono uppercase transition cursor-pointer"
+            >
+              Restart Simulation
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div id="app" className="relative w-full h-screen overflow-hidden text-slate-350 font-sans select-none tracking-normal antialiased bg-[#020408]">

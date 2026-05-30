@@ -76,29 +76,31 @@ app.post("/api/helper/chat", async (req, res) => {
 
 // Setup dynamic bundle routes
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    // Serve production bundle built statically with recursive path detection
-    let distPath = path.join(process.cwd(), 'dist');
-    
-    // Check if we are running in bundled output folder or from a subfolder
-    const localCjsDir = typeof __dirname !== 'undefined' ? __dirname : '';
-    if (localCjsDir && fs.existsSync(path.join(localCjsDir, 'index.html'))) {
-      distPath = localCjsDir;
-    } else if (fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'))) {
-      distPath = path.join(process.cwd(), 'dist');
-    }
-    
+  // Determine if static build assets exist
+  let distPath = path.join(process.cwd(), 'dist');
+  const localCjsDir = typeof __dirname !== 'undefined' ? __dirname : '';
+  
+  if (localCjsDir && fs.existsSync(path.join(localCjsDir, 'index.html'))) {
+    distPath = localCjsDir;
+  } else if (fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'))) {
+    distPath = path.join(process.cwd(), 'dist');
+  }
+
+  const hasBuiltAssets = fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (process.env.NODE_ENV === "production" || hasBuiltAssets) {
     console.log("Serving static files in production from:", distPath);
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  } else {
+    console.log("Starting in development mode with Vite HMR middleware...");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
   }
 
   app.listen(PORT, "0.0.0.0", () => {

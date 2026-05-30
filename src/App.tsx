@@ -503,11 +503,13 @@ export default function App() {
         // Ring mapping coordinates UV adjustments
         const pos = ringGeo.attributes.position;
         const uv = ringGeo.attributes.uv;
-        for (let i = 0; i < pos.count; i++) {
-          const vertex = new THREE.Vector3().fromBufferAttribute(pos, i);
-          const dist = vertex.length();
-          const normDist = (dist - obj.radius * 1.4) / (obj.radius * 1.4);
-          uv.setXY(i, normDist, 0.5);
+        if (pos && uv) {
+          for (let i = 0; i < pos.count; i++) {
+            const vertex = new THREE.Vector3().fromBufferAttribute(pos, i);
+            const dist = vertex.length();
+            const normDist = (dist - obj.radius * 1.4) / (obj.radius * 1.4);
+            uv.setXY(i, normDist, 0.5);
+          }
         }
         
         const ringMat = new THREE.MeshStandardMaterial({
@@ -974,7 +976,11 @@ export default function App() {
       while (hit.parent && !celestialObjects.some(o => o.id === hit.name)) {
         hit = hit.parent;
       }
-      setHoveredID(hit.name);
+      if (celestialObjects.some(o => o.id === hit.name)) {
+        setHoveredID(hit.name);
+      } else {
+        setHoveredID(null);
+      }
     } else {
       setHoveredID(null);
     }
@@ -1141,7 +1147,7 @@ export default function App() {
       )}
 
       {/* 3D FLOATING SCENE TOOLTIP OVERLAYS */}
-      {hoveredID && !selectedID && (
+      {hoveredID && !selectedID && celestialObjects.some(o => o.id === hoveredID) && (
         <div
           id="orbit-float-tooltip"
           className="absolute pointer-events-none z-30 px-3 py-2 bg-black/80 border border-cyan-500/40 rounded-none shadow-2xl backdrop-blur-md"
@@ -1152,8 +1158,8 @@ export default function App() {
           }}
         >
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: celestialObjects.find(o => o.id === hoveredID)?.color }} />
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">{celestialObjects.find(o => o.id === hoveredID)?.name}</h4>
+            <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: celestialObjects.find(o => o.id === hoveredID)?.color || '#2563eb' }} />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-white">{celestialObjects.find(o => o.id === hoveredID)?.name || ''}</h4>
           </div>
           <p className="text-[9px] text-cyan-400 font-mono mt-0.5 uppercase tracking-widest">CLICK BODY TO INSPECT</p>
         </div>

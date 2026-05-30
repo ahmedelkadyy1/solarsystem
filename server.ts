@@ -23,6 +23,16 @@ const ai = new GoogleGenAI({
 
 app.use(express.json());
 
+// Request logging middleware to diagnose static assets routing
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[REQUEST] ${req.method} ${req.url} -> ${res.statusCode} (${duration}ms)`);
+  });
+  next();
+});
+
 // Main chat API for the AI Helper
 app.post("/api/helper/chat", async (req, res) => {
   try {
@@ -71,6 +81,53 @@ app.post("/api/helper/chat", async (req, res) => {
   } catch (error: any) {
     console.error("AI Helper Core Error:", error);
     res.status(500).json({ error: error.message || "Stellar translation transmission interrupted." });
+  }
+});
+
+// Diagnostics endpoint to identify local vs Render filesystem mismatches
+app.get("/api/diagnostics", (req, res) => {
+  try {
+    const cwd = process.cwd();
+    const localCjsDir = typeof __dirname !== 'undefined' ? __dirname : 'undefined';
+    
+    let distPath = path.join(process.cwd(), 'dist');
+    if (localCjsDir !== 'undefined' && fs.existsSync(path.join(localCjsDir, 'index.html'))) {
+      distPath = localCjsDir;
+    } else if (fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'))) {
+      distPath = path.join(process.cwd(), 'dist');
+    }
+
+    const distExists = fs.existsSync(distPath);
+    let distFiles: string[] = [];
+    let assetsFiles: string[] = [];
+    
+    if (distExists) {
+      distFiles = fs.readdirSync(distPath).map(file => {
+        const stats = fs.statSync(path.join(distPath, file));
+        return `${file} (${stats.size} bytes, isDir: ${stats.isDirectory()})`;
+      });
+      
+      const assetsPath = path.join(distPath, 'assets');
+      if (fs.existsSync(assetsPath)) {
+        assetsFiles = fs.readdirSync(assetsPath).map(file => {
+          const stats = fs.statSync(path.join(assetsPath, file));
+          return `${file} (${stats.size} bytes)`;
+        });
+      }
+    }
+
+    res.json({
+      processCwd: cwd,
+      localCjsDir: localCjsDir,
+      resolvedDistPath: distPath,
+      distExists,
+      distFiles,
+      assetsFiles,
+      envNodeEnv: process.env.NODE_ENV,
+      portBound: 3000
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
